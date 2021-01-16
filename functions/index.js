@@ -11,6 +11,8 @@ let db = admin.firestore();
 let pateintsRef = db.collection("Patients");
 let emerRef = admin.firestore().collection("Emergencies");
 let questionsLib = db.collection("QuestionLib");
+let meaningLib = db.collection("MeaningLib")
+let answerRef = db.collection("Answers")
 const bodyParser = require("body-parser");
 
 app.use(bodyParser.json());
@@ -137,16 +139,30 @@ app.post("/ai/analyse", async (req, res) => {
   let qid = req.query.questionId;
   let dataType = req.body.dataType;
   let answer = req.body.answer;
+  let emergId = req.body.emergencyId
+  let patientId = req.body.patientId
+  let repeatCount = req.body.repeatCount
+  let suggestCount = req.body.suggestCount
 
   let order = {
     nextTo: "",
     isRepeat: false,
+    label:"",
+    suggestMeaning:""
   };
+
   let answerData = {
     questionId: qid,
     answer: answer,
-    dataType: dataType
+    dataType: dataType,
+    date: new Date(),
+    emergencyId: emergId,
+    patientId: patientId,
+    repeatCount:repeatCount,
+    suggestCount: suggestCount
+
   };
+
   let meaning = {
     questionId: "",
     answer: "",
@@ -154,77 +170,100 @@ app.post("/ai/analyse", async (req, res) => {
     label: ""
   };
 
-  try {
-      if(qid === 'a106'){
+  try{
+    if(qid === 'a106')
+    {
+      const qd = (await questionsLib.doc(qid).get()).data();
+      meaning = {
+        questionId: qid,
+        answer: answerData.answer,
+        meaning:1
+      }
+
+      order = {
+        nextTo: qd['nextTo' + meaning.meaning],
+        isRepeat: false
+      }
+
+      res.send(order);
+
+    } else {
+      if (dataType === "Phone") 
+      {
+        let tel = checkphone(answer);
         const qd = (await questionsLib.doc(qid).get()).data();
-        meaning = {
+
+        if (tel.isPhone === true) 
+        {
+          meaning = {
             questionId: qid,
-            answer: answerData.answer,
-            meaning: 1,
-            label: ""
-          }
-        order = {
-            nextTo: qd['nextTo' + meaning.meaning],
-            isRepeat: false
-          }
-
-        res.send(order);
-
-      }else{
-
-        if (dataType === "Phone") {
-          let tel = checkphone(answer);
-          const qd = (await questionsLib.doc(qid).get()).data();
-
-          if (tel.isPhone === true) {
-            meaning = {
-              questionId: qid,
-              answer: answer,
-              meaning: "1",
-              label: "1"
-            };
-
-          } else {
-            meaning = {
-              questionId: qid,
-              answer: answer,
-              meaning: "0",
-              label: "0"
-            };
-          }
-
-          order = {
-            nextTo: qd['nextTo' + meaning.meaning],
-            isRepeat: false
+            answer: answer,
+            meaning: "1",
+            label: "1"
           };
-          res.send(order);
 
         } else {
-          //const ml = (await meaningLib.doc(qid).get()).data();
-          const qd = (await questionsLib.doc(qid).get()).data();
-          meaning = await getMeaning(answerData);
+          meaning = {
+            questionId: qid,
+            answer: answer,
+            meaning: "0",
+            label: "0"
+          };
+        }
 
-          if(dataType === 'Number'){ /// แก้ทีหลัง เมื่อทำฟีเจอร์ถามผู้ป่วยมากกว่า 1 ราย
-            let re_mean = 0;
+        order = {
+          nextTo: qd['nextTo' + meaning.meaning],
+          isRepeat: false
+        };
+        res.send(order);
 
-            if(meaning.meaning === 1) re_mean = 1; //ถ้า ไม่ใช่ 1 คนให้โอนสายไปหาเจ้าหน้าที่เลยก่อน
+      } else {
+        //const ml = (await meaningLib.doc(qid).get()).data();
+        const qd = (await questionsLib.doc(qid).get()).data();
+        meaning = await getMeaning(answerData);
 
-            order = {
-              nextTo: qd['nextTo' + re_mean],
-              isRepeat: false
-            };
+        if(dataType === 'Number'){ /// แก้ทีหลัง เมื่อทำฟีเจอร์ถามผู้ป่วยมากกว่า 1 ราย
+          let re_mean = 0;
 
-          }else{
+          if(meaning.meaning === 1) re_mean = 1; //ถ้า ไม่ใช่ 1 คนให้โอนสายไปหาเจ้าหน้าที่เลยก่อน
+
+          order = {
+            nextTo: qd['nextTo' + re_mean],
+            isRepeat: false
+          };
+
+        } else {
+          // query หา data ใน meaningLib 
+          const snapshot = await meaningLib.where("questionId","==",answerData.questionId).where("answer","==",answerData.answer).get();
+          
+          if(snapshot.empty){//ถ้าไม่มี ส่ง order ให้ถามอีกรอบ
             order = {
               nextTo: qd['nextTo' + meaning.meaning],
-              isRepeat: false
+              isRepeat: true
             };
 
+          }else{//ถ้ามี บันทึก answer ลงในฐานข้อมูล Answer
+            answerRef.doc().set(answerData);
+            order = {
+              nextTo: qd['nextTo' + snapshot.meaning],
+              isRepeat: false,
+              label: snapshot.label
+            };
+          }
+
+          if (answerData.repeatCount>=1) {// ถ้า repeatCount >= 1 ให้ AI หา Meaning
+            meaning = await getMeaning(answerData);
+            order ={
+              nextTo: qd['nextTo' + meaning.meaning],
+              isRepeat:false,
+              label:meaning.label
+            }
           }
           res.send(order);
         }
       }
-    } catch (err) {
+    }
+  }catch (err) {
     res.send(err.message);
   }
 });
