@@ -182,7 +182,9 @@ app.post("/ai/analyse", async (req, res) => {
 
       order = {
         nextTo: qd['nextTo' + meaning.meaning],
-        isRepeat: false
+        isRepeat: false,
+        // getLabel ส่งค่าสีกลับไปด้วย
+        label: "answerDetails"
       }
 
       res.send(order);
@@ -213,7 +215,9 @@ app.post("/ai/analyse", async (req, res) => {
 
         order = {
           nextTo: qd['nextTo' + meaning.meaning],
-          isRepeat: false
+          isRepeat: false,
+          // getLabel ส่งค่าสีกลับไปด้วย
+          label:"Phone"
         };
         res.send(order);
 
@@ -229,7 +233,9 @@ app.post("/ai/analyse", async (req, res) => {
 
           order = {
             nextTo: qd['nextTo' + re_mean],
-            isRepeat: false
+            isRepeat: false,
+            // getLabel ส่งค่าสีกลับไปด้วย
+            label:"Numbers of patient"
           };
 
         } else {
@@ -239,7 +245,9 @@ app.post("/ai/analyse", async (req, res) => {
           if(snapshot.empty){//ถ้าไม่มี ส่ง order ให้ถามอีกรอบ
             order = {
               nextTo: qd['nextTo' + meaning.meaning],
-              isRepeat: true
+              isRepeat: true,
+              // getLabel ส่งค่าสีกลับไปด้วย
+              label:"Ask again"
             };
 
           }else{//ถ้ามี บันทึก answer ลงในฐานข้อมูล Answer
@@ -247,6 +255,7 @@ app.post("/ai/analyse", async (req, res) => {
             order = {
               nextTo: qd['nextTo' + snapshot.meaning],
               isRepeat: false,
+              // getLabel ส่งค่าสีกลับไปด้วย
               label: snapshot.label
             };
           }
@@ -256,6 +265,7 @@ app.post("/ai/analyse", async (req, res) => {
             order ={
               nextTo: qd['nextTo' + meaning.meaning],
               isRepeat:false,
+              // getLabel ส่งค่าสีกลับไปด้วย
               label:meaning.label
             }
           }
@@ -376,4 +386,11 @@ function checkphone(answer) {
   }
 
   return result;
+}
+
+function getLabel(answerData){
+  let label = "";
+  if(answerData.questionId==='a102'||answerData.questionId==='a103') label='red';
+  if(answerData.questionId==='a104'||answerData.questionId==='a105'||answerData.questionId==='a106'||answerData.questionId==='a107') label ='yellow';
+  if(answerData.questionId==='b100'||answerData.questionId==='b101') label='covid';
 }
