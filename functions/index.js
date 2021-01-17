@@ -18,11 +18,6 @@ const bodyParser = require("body-parser");
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
-const genId = function () {
-  const id = Math.random().toString(36).slice(-8);
-  return id;
-};
-
 app.post("/emergencies/new", async (req, res) => {
   try {
     const emergency = {
