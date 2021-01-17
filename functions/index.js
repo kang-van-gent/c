@@ -238,23 +238,6 @@ app.post("/ai/analyse", async (req, res) => {
   }
 });
 
-
-api.post("/checkphone", (req, res) => {
-  /*
-    {
-        "questionId":"someId",
-        "answer":"1234",
-        "datatype":"String 0r phone"
-    }
-    */
-
-  let questionid = req.body.questionid;
-  let answer = req.body.answer;
-  let dataType = req.body.dataType;
-
-  res.send(checkphone(answer));
-});
-
 exports.app = functions.https.onRequest(app);
 exports.admin = functions.https.onRequest(api);
 
