@@ -25,14 +25,13 @@ const genId = function () {
 
 app.post("/emergencies/new", async (req, res) => {
   try {
-    const uid = genId();
     const emergency = {
-      userId: uid,
+      phone: "",
+      color: "",
       location: {
         latitude: null,
         longitude: null,
       },
-      phone: "",
       numberOfPatients: "",
       isPatients: false,
       isCovid: false,
@@ -43,7 +42,8 @@ app.post("/emergencies/new", async (req, res) => {
       callEndedDate: null,
       pleaseCall: "",
     };
-    await emerRef.doc(uid).set(emergency);
+    await emerRef.doc().set(emergency);
+
     res.send(emergency);
   } catch (err) {
     res.send(err.message);
@@ -64,7 +64,7 @@ app.post("/patients/new/", async (req, res) => {
         CompleteDate: null,
         isCovid: false,
       };
-      pateintsRef.doc(genId()).set(patients);
+      pateintsRef.doc().set(patients);
     }
 
     res.send(patients);
@@ -90,17 +90,9 @@ app.put("/emergencies/update/", async (req, res) => {
     */
   try {
     const id = req.query.emergencyId;
-    const emer = emerRef.doc(id);
-    await emer.update({
-      location: req.body.location,
-      phone: req.body.phone,
-      numberOfPatients: req.body.numberOfPatients,
-      isPatients: req.body.isPatients,
-      isCovid: req.body.isCovid,
-      isAmbulanceSent: req.body.isAmbulanceSent,
-      callEndDate: new Date(),
-      pleaseCall: req.body.pleaseCall,
-    });
+    const data = req.body
+    const emer = emerRef.doc(id).update(data);
+
     res.send(emer);
   } catch (err) {
     res.send(err.message);
