@@ -24,7 +24,6 @@ const genId = function () {
 };
 
 app.post("/emergencies/new", async (req, res) => {
-  let result = Result();
   try {
     const uid = genId();
     const emergency = {
@@ -136,144 +135,105 @@ app.put("/patients/update/", async (req, res) => {
 });
 
 app.post("/ai/analyse", async (req, res) => {
-  let qid = req.query.questionId;
-  let dataType = req.body.dataType;
-  let answer = req.body.answer;
-  let emergId = req.body.emergencyId
-  let patientId = req.body.patientId
-  let repeatCount = req.body.repeatCount
-  let suggestCount = req.body.suggestCount
+  const qid = req.query.questionId
+  const dataType = req.body.dataType
+  const ans = req.body.answer
+  const emergId = req.body.emergencyId
+  const patientId = req.body.patientId
+  const repeatCount = req.body.repeatCount
+  const suggestCount = req.body.suggestCount
 
   let order = {
     nextTo: "",
     isRepeat: false,
-    label:"",
-    suggestMeaning:""
-  };
+    label: "",
+    suggestMeaning: ""
+  }
 
-  let answerData = {
+  let answer = {
     questionId: qid,
-    answer: answer,
+    answer: ans,
     dataType: dataType,
     date: new Date(),
     emergencyId: emergId,
     patientId: patientId,
-    repeatCount:repeatCount,
+    repeatCount: repeatCount,
     suggestCount: suggestCount
-
-  };
+  }
 
   let meaning = {
     questionId: "",
     answer: "",
-    meaning: "",
+    meaning: 0,
     label: ""
-  };
+  }
 
-  try{
-    if(qid === 'a106')
-    {
-      const qd = (await questionsLib.doc(qid).get()).data();
+  try {
+    const qd = (await questionsLib.doc(qid).get()).data()
+    if (qid === 'a106') { //a106 จะไม่ใข้ AI เพราะเป็นการอธิบาย
       meaning = {
         questionId: qid,
-        answer: answerData.answer,
-        meaning:1
+        answer: answer.answer,
+        meaning: 1,
+        label: "" 
       }
-
       order = {
         nextTo: qd['nextTo' + meaning.meaning],
         isRepeat: false,
-        // getLabel ส่งค่าสีกลับไปด้วย
-        label: "answerDetails"
+        label: analyseLabel(answer, meaning) //ยังไงก็ได้เป็นสีเหลือง
       }
-
-      res.send(order);
-
+      answerRef.doc().set(answer)
     } else {
-      if (dataType === "Phone") 
-      {
-        let tel = checkphone(answer);
-        const qd = (await questionsLib.doc(qid).get()).data();
-
-        if (tel.isPhone === true) 
-        {
-          meaning = {
-            questionId: qid,
-            answer: answer,
-            meaning: "1",
-            label: "1"
-          };
-
-        } else {
-          meaning = {
-            questionId: qid,
-            answer: answer,
-            meaning: "0",
-            label: "0"
-          };
-        }
-
+      if (dataType === "Phone") {
+        meaning = checkPhoneMeaning(answer);
+        if(meaning === 1) answerRef.doc().set(answer)
         order = {
           nextTo: qd['nextTo' + meaning.meaning],
-          isRepeat: false,
-          // getLabel ส่งค่าสีกลับไปด้วย
-          label:"Phone"
-        };
-        res.send(order);
+          isRepeat: (meaning.meaning === 1), //ให้ค่า true เมื่อ meaning.meaning == 1
+          label: answer.answer
+        }
+      }else if(dataType === 'Number'){ 
+        if(repeatCount >= 1) meaning = await analyseMeaning(answer, 2)
+        else meaning = await analyseMeaning(answer, 1)
 
-      } else {
-        //const ml = (await meaningLib.doc(qid).get()).data();
-        const qd = (await questionsLib.doc(qid).get()).data();
-        meaning = await getMeaning(answerData);
-
-        if(dataType === 'Number'){ /// แก้ทีหลัง เมื่อทำฟีเจอร์ถามผู้ป่วยมากกว่า 1 ราย
-          let re_mean = 0;
-
-          if(meaning.meaning === 1) re_mean = 1; //ถ้า ไม่ใช่ 1 คนให้โอนสายไปหาเจ้าหน้าที่เลยก่อน
-
+        if(meaning !== null){
+          answerRef.doc().set(answer)
+          let re_mean = 0
+          if (meaning.meaning === 1) re_mean = 1; //ถ้า ไม่ใช่ 1 คนให้โอนสายไปหาเจ้าหน้าที่เลยก่อน
           order = {
             nextTo: qd['nextTo' + re_mean],
             isRepeat: false,
-            // getLabel ส่งค่าสีกลับไปด้วย
-            label:"Numbers of patient"
-          };
-
-        } else {
-          // query หา data ใน meaningLib 
-          const snapshot = await meaningLib.where("questionId","==",answerData.questionId).where("answer","==",answerData.answer).get();
-          
-          if(snapshot.empty){//ถ้าไม่มี ส่ง order ให้ถามอีกรอบ
-            order = {
-              nextTo: qd['nextTo' + meaning.meaning],
-              isRepeat: true,
-              // getLabel ส่งค่าสีกลับไปด้วย
-              label:"Ask again"
-            };
-
-          }else{//ถ้ามี บันทึก answer ลงในฐานข้อมูล Answer
-            answerRef.doc().set(answerData);
-            order = {
-              nextTo: qd['nextTo' + snapshot.meaning],
-              isRepeat: false,
-              // getLabel ส่งค่าสีกลับไปด้วย
-              label: snapshot.label
-            };
+            label: "Numbers of patient" // analyseLabel ส่งค่าสีกลับไปด้วย
           }
-
-          if (answerData.repeatCount>=1) {// ถ้า repeatCount >= 1 ให้ AI หา Meaning
-            meaning = await getMeaning(answerData);
-            order ={
-              nextTo: qd['nextTo' + meaning.meaning],
-              isRepeat:false,
-              // getLabel ส่งค่าสีกลับไปด้วย
-              label:meaning.label
-            }
+        }else{
+          order = {
+            nextTo: null,
+            isRepeat: true,
+            label: "Ask again"
           }
-          res.send(order);
+        }
+      }else {
+        if(repeatCount >= 1) meaning = await analyseMeaning(answer, 2)
+        else meaning = await analyseMeaning(answer, 1)
+
+        if (meaning !== null) { //ถ้ามี บันทึก answer ลงในฐานข้อมูล Answer
+          answerRef.doc().set(answer)
+          order = {
+            nextTo: qd['nextTo' + meaning.meaning],
+            isRepeat: false,
+            label: analyseLabel(answer, meaning) // analyseLabel ส่งค่าสีกลับไปด้วย
+          }
+        } else { //ถ้าไม่มี ส่ง order ให้ถามอีกรอบ
+          order = {
+            nextTo: null,
+            isRepeat: true,
+            label: "Ask again"
+          }
         }
       }
     }
-  }catch (err) {
+    res.send(order);
+  } catch (err) {
     res.send(err.message);
   }
 });
@@ -298,99 +258,91 @@ api.post("/checkphone", (req, res) => {
 exports.app = functions.https.onRequest(app);
 exports.admin = functions.https.onRequest(api);
 
-var Result = function () {
-  return {
-    success: false,
-    response: null,
-    error: null,
-  };
-};
-
-var Error = function (code, msg) {
-  return {
-    code: code,
-    msg: msg,
-  };
-};
-
-var getMeaning = function (answer) {
-    return new Promise((resolve, reject)=>{
-        var options = {
-            url: 'https://covid19-test-a70c0.uc.r.appspot.com/api',
-            body: answer,
-            json: true,
-            method: 'post'}
-        
-            request(options, (error, response, body) => {
-                if(error){
-                    reject(error)
-                }else{
-                    let set = response.body
-                    resolve(set)
-                }
-            });
-    })
+async function analyseMeaning(answer, mode) { //2 ระบบในฟังก์ชั่นเดียว #1 จากการ query ใน firestore, #2 จากการ request ไปยัง app engine
+  return new Promise(async (resolve, reject) => {
+    if(mode === 1){
+      const meanings = await meaningLib.where("questionId", "==", answer.questionId).where("answer", "==", answer.answer).get()
+      if(meanings.empty) resolve(null) //ไม่พบ meaning ใดใน MeaningLib หมายความว่าต้องให้ client ตอบอีกรอบ
+      else resolve(meanings.docs[0].data()) //ต้องการแค่เฉพาะสมาชิกตัวแรกใน array จากการ query
+    }else{
+      const options = {
+        url: 'https://covid19-test-a70c0.uc.r.appspot.com/api',
+        body: answer,
+        json: true,
+        method: 'post'
+      }
+      request(options, (error, response, body) => {
+        if (error) reject(error)
+        else resolve(response.body)
+      })
+    }
+  })
 }
 
-function checkphone(answer) {
-  let result = {
-    isPhone: false,
-    prefix: "",
-    length: 0,
-  };
-
-  if (isNaN(answer)===false) {
-    let prefix = answer[0] + answer[1];
-    if (prefix === "06" || prefix === "08" || prefix === "09") {
-      if (answer.length === 10) {
-        result.isPhone = true;
-      } else {
-        result.isPhone = false;
-      }
-    } else if (prefix === "02" ||prefix === "03" ||prefix === "05" ||prefix === "04" ||prefix === "07") {
-      if (answer.length === 9) {
-        result.isPhone = true;
-      } else {
-        result.isPhone = false;
-      }
-    } else {
-      result.isPhone = false;
-    }
-    result.prefix = prefix;
-    result.length = answer.length;
-
-  } else{
-    let reg = /\d+/g;
-    let result1 = answer.match(reg);
-    let phone = String(result1[0]+result1[1]+result1[2])
-    let length = result1[0].length+result1[1].length+result1[2].length
-    let prefix = phone[0] + phone[1];
-    if (prefix === '06' || prefix === '08' || prefix === '09') {
-      if (length === 10) {
-        result.isPhone = true;
-      } else {
-        result.isPhone = false;
-      }
-    } else if (prefix === '02' ||prefix === '03' ||prefix === '05' ||prefix === '04' ||prefix === '07') {
-      if (length === 9) {
-        result.isPhone = true;
-      } else {
-        result.isPhone = false;
-      }
-    } else {
-      result.isPhone = false;
-    }
-    result.prefix = prefix;
-    result.length = length;
-
+function checkPhoneMeaning(answer) {
+  let meaning = {
+    questionId: answer.questionId,
+    answer: answer.answer,
+    label: answer.answer,
+    meaning: 0
   }
 
-  return result;
+  if (isNaN(answer)) {
+    const reg = /\d+/g;
+    const result1 = answer.match(reg);
+    const phone = String(result1[0] + result1[1] + result1[2])
+    const length = result1[0].length + result1[1].length + result1[2].length
+    const prefix = phone[0] + phone[1];
+    if (prefix === '06' || prefix === '08' || prefix === '09') {
+      if (length === 10) meaning.meaning = 1
+      else meaning.meaning = 0
+    } else if (prefix === '02' || prefix === '03' || prefix === '05' || prefix === '04' || prefix === '07') {
+      if (length === 9) meaning.meaning = 1
+      else meaning.meaning = 0
+    }
+  } else {
+    const prefix = answer[0] + answer[1];
+    if (prefix === "06" || prefix === "08" || prefix === "09") {
+      if (answer.length === 10) meaning.meaning = 1
+      else meaning.meaning = 0
+    } else if (prefix === "02" || prefix === "03" || prefix === "05" || prefix === "04" || prefix === "07") {
+      if (answer.length === 9) meaning.meaning = 1
+      else meaning.meaning = 0
+    }
+  }
+
+  return meaning
 }
 
-function getLabel(answerData){
-  let label = "";
-  if(answerData.questionId==='a102'||answerData.questionId==='a103') label='red';
-  if(answerData.questionId==='a104'||answerData.questionId==='a105'||answerData.questionId==='a106'||answerData.questionId==='a107') label ='yellow';
-  if(answerData.questionId==='b100'||answerData.questionId==='b101') label='covid';
+function analyseLabel(answer, meaning) {
+  let label = ""
+
+  switch(answer.questionId){
+    case 'a102':
+      if(meaning.meaning === 0) label = 'red'
+      break
+    case 'a103':
+      if(meaning.meaning >= 1) label = 'red'
+      break
+    case 'a105':
+      if(meaning.meaning >= 1) label = 'yellow'
+      break
+    case 'a106':
+      if(meaning.meaning >= 1) label = 'yellow'
+      break
+    case 'a107':
+      if(meaning.meaning === 0) label = 'yellow'
+      else label = 'green' //เป็นคำถามสุดท้ายที่คัดกรองกลุ่ม สีเหลือง
+      break
+    case 'b100':
+      if(meaning.meaning >= 1) label = 'covid'
+      break
+    case 'b101':
+      if(meaning.meaning >= 1) label = 'covid'
+      break
+    default:
+      label = meaning.label
+  }
+
+  return label
 }
