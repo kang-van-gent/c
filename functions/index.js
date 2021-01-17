@@ -29,8 +29,8 @@ app.post("/emergencies/new", async (req, res) => {
     const emergency = {
       userId: uid,
       location: {
-        Lat: null,
-        Lng: null,
+        latitude: null,
+        longitude: null,
       },
       phone: "",
       numberOfPatients: "",
