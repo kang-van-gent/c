@@ -53,6 +53,7 @@ app.post("/emergencies/new", async (req, res) => {
 app.post("/patients/new/", async (req, res) => {
   let emerId = req.query.emergencyId;
   let num = req.query.number;
+
   try {
     for (let i = 0; i < num; i++) {
       const patients = {
@@ -63,7 +64,6 @@ app.post("/patients/new/", async (req, res) => {
         CompleteDate: null,
         isCovid: false,
       };
-
       pateintsRef.doc(genId()).set(patients);
     }
 
@@ -120,14 +120,9 @@ app.put("/patients/update/", async (req, res) => {
     */
   try {
     const id = req.query.patientId;
-    const patient = pateintsRef.doc(id);
-    await patient.update({
-      OrderNumber: req.body.orderNumber,
-      isCovid: req.body.isCovid,
-      Color: req.body.color,
-      CompleteDate: new Date(),
-      Answer: req.body.answer,
-    });
+    const data = req.body
+    const patient = await pateintsRef.doc(id).update(data);
+
     res.send(patient);
   } catch (err) {
     res.send(err.message);
