@@ -57,11 +57,11 @@ app.post("/patients/new/", async (req, res) => {
   try {
     for (let i = 0; i < num; i++) {
       const patients = {
-        EmergencyId: emerId,
-        OrderNumber: 0,
-        Color: "",
-        Answers: {},
-        CompleteDate: null,
+        emergencyId: emerId,
+        order: 0,
+        color: "",
+        answers: {},
+        completedDate: null,
         isCovid: false,
       };
       pateintsRef.doc().set(patients);
