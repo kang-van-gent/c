@@ -4,15 +4,15 @@ const admin = require("firebase-admin");
 const functions = require("firebase-functions");
 admin.initializeApp();
 const express = require("express");
-var request = require("request");
+const request = require("request");
 const app = express();
 const api = express();
-let db = admin.firestore();
-let pateintsRef = db.collection("Patients");
-let emerRef = admin.firestore().collection("Emergencies");
-let questionsLib = db.collection("QuestionLib");
-let meaningLib = db.collection("MeaningLib")
-let answerRef = db.collection("Answers")
+const db = admin.firestore();
+const patientRef = db.collection("Patients");
+const emerRef = db.collection("Emergencies");
+const questionLibRef = db.collection("QuestionLib");
+const meaningLibRef = db.collection("MeaningLib")
+const answerRef = db.collection("Answers")
 const bodyParser = require("body-parser");
 
 app.use(bodyParser.json());
@@ -46,8 +46,8 @@ app.post("/emergencies/new", async (req, res) => {
 });
 
 app.post("/patients/new/", async (req, res) => {
-  let emerId = req.query.emergencyId;
-  let num = req.query.number;
+  const emerId = req.query.emergencyId;
+  const num = req.query.number;
 
   try {
     for (let i = 0; i < num; i++) {
@@ -55,11 +55,10 @@ app.post("/patients/new/", async (req, res) => {
         emergencyId: emerId,
         order: 0,
         color: "",
-        answers: {},
         completedDate: null,
         isCovid: false,
       };
-      pateintsRef.doc().set(patients);
+      patientRef.doc().set(patients);
     }
 
     res.send(patients);
@@ -86,7 +85,7 @@ app.put("/emergencies/update/", async (req, res) => {
   try {
     const id = req.query.emergencyId;
     const data = req.body
-    const emer = emerRef.doc(id).update(data);
+    const emer = await emerRef.doc(id).update(data);
 
     res.send(emer);
   } catch (err) {
@@ -108,7 +107,7 @@ app.put("/patients/update/", async (req, res) => {
   try {
     const id = req.query.patientId;
     const data = req.body
-    const patient = await pateintsRef.doc(id).update(data);
+    const patient = await patientRef.doc(id).update(data);
 
     res.send(patient);
   } catch (err) {
@@ -151,7 +150,7 @@ app.post("/ai/analyse", async (req, res) => {
   }
 
   try {
-    const qd = (await questionsLib.doc(qid).get()).data()
+    const qd = (await questionLibRef.doc(qid).get()).data()
     if (qid === 'a106') { //a106 จะไม่ใข้ AI เพราะเป็นการอธิบาย
       meaning = {
         questionId: qid,
@@ -226,8 +225,8 @@ exports.admin = functions.https.onRequest(api);
 async function analyseMeaning(answer, mode) { //2 ระบบในฟังก์ชั่นเดียว #1 จากการ query ใน firestore, #2 จากการ request ไปยัง app engine
   return new Promise(async (resolve, reject) => {
     if(mode === 1){
-      const meanings = await meaningLib.where("questionId", "==", answer.questionId).where("answer", "==", answer.answer).get()
-      if(meanings.empty) resolve(null) //ไม่พบ meaning ใดใน MeaningLib หมายความว่าต้องให้ client ตอบอีกรอบ
+      const meanings = await meaningLibRef.where("questionId", "==", answer.questionId).where("answer", "==", answer.answer).get()
+      if(meanings.empty) resolve(null) //ไม่พบ meaning ใดใน MeaningLibRef หมายความว่าต้องให้ client ตอบอีกรอบ
       else resolve(meanings.docs[0].data()) //ต้องการแค่เฉพาะสมาชิกตัวแรกใน array จากการ query
     }else{
       const options = {
