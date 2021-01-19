@@ -49,19 +49,23 @@ app.post("/patients/new/", async (req, res) => {
   const emerId = req.query.emergencyId;
   const num = req.query.number;
 
+  let patients = []
+
   try {
     for (let i = 0; i < num; i++) {
-      const patients = {
+      const pRef = patientRef.doc()
+      const p = {
+        id: pRef.id,
         emergencyId: emerId,
         order: 0,
         color: "",
         completedDate: null,
         isCovid: false,
-      };
-      patientRef.doc().set(patients);
+      }
+      patients.push(p)
+      pRef.set(p)
     }
-
-    res.send(patients);
+    res.send(patients)
   } catch (err) {
     res.send(err.message);
   }
@@ -184,7 +188,7 @@ app.post("/ai/analyse", async (req, res) => {
           order = {
             nextTo: qd['nextTo' + re_mean],
             isRepeat: false,
-            label: "Numbers of patient" // analyseLabel ส่งค่าสีกลับไปด้วย
+            label: meaning.label // analyseLabel ส่งค่าสีกลับไปด้วย
           }
         }else{
           order = {
