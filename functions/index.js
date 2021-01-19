@@ -20,7 +20,9 @@ app.use(bodyParser.urlencoded({ extended: false }));
 
 app.post("/emergencies/new", async (req, res) => {
   try {
+    const eRef = emerRef.doc()
     const emergency = {
+      id: eRef.id,
       phone: "",
       color: "",
       location: {
@@ -37,7 +39,7 @@ app.post("/emergencies/new", async (req, res) => {
       callEndedDate: null,
       pleaseCall: "",
     };
-    await emerRef.doc().set(emergency);
+    await eRef.set(emergency);
 
     res.send(emergency);
   } catch (err) {
