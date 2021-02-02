@@ -1,4 +1,83 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "Answers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "emergencyId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "patientId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "date",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Emergencies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "completedDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "isAmbulanceSent",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdDate",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Emergencies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isAmbulanceSent",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "completedDate",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "Emergencies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isAmbulanceSent",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdDate",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "MeaningLib",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "questionId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "answer",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
   "fieldOverrides": []
 }
