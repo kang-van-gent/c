@@ -130,13 +130,6 @@ app.post("/ai/analyse", async (req, res) => {
   const repeatCount = req.body.repeatCount;
   const suggestCount = req.body.suggestCount;
 
-  let order = {
-    nextTo: "",
-    isRepeat: false,
-    label: "",
-    suggestMeaning: "",
-  };
-
   let answer = {
     questionId: qid,
     answer: ans,
@@ -148,77 +141,68 @@ app.post("/ai/analyse", async (req, res) => {
     suggestCount: suggestCount,
   };
 
-  let meaning = {
-    questionId: "",
-    answer: "",
-    meaning: 0,
-    label: "",
-  };
-
   try {
-    const qd = (await questionLibRef.doc(qid).get()).data();
+    let order = {};
+    let meaning = {};
     if (qid === "a106") {
-      //a106 จะไม่ใข้ AI เพราะเป็นการอธิบาย
-      meaning = {
-        questionId: qid,
-        answer: answer.answer,
-        meaning: 1,
-        label: "",
-      };
-      order = {
-        nextTo: qd["nextTo" + meaning.meaning],
-        isRepeat: false,
-        label: analyseLabel(answer, meaning), //ยังไงก็ได้เป็นสีเหลือง
-      };
+      meaning = ConstructMeaning(answer.questionId, answer.answer, "", 1);
       answerRef.doc().set(answer);
+      order = ConstructOrder(
+        answer.questionId,
+        analyseLabel(answer, meaning),
+        qd["nextTo"] + meaning.meaning,
+        false,
+        false,
+        null
+      );
+    } else if (dataType === "Phone") {
+      meaning = checkPhoneMeaning(answer);
+      if (meaning === 1) answerRef.doc().set(answer);
+      const qd = (await questionLibRef.doc(answer.questionId).get()).data();
+      order = ConstructOrder(
+        answer.questionId,
+        answer.answer,
+        qd["nextTo" + meaning.meaning],
+        meaning.meaning === 1,
+        false,
+        null
+      );
     } else {
-      if (dataType === "Phone") {
-        meaning = checkPhoneMeaning(answer);
-        if (meaning === 1) answerRef.doc().set(answer);
-        order = {
-          nextTo: qd["nextTo" + meaning.meaning],
-          isRepeat: meaning.meaning === 1, //ให้ค่า true เมื่อ meaning.meaning == 1
-          label: answer.answer,
-        };
-      } else if (dataType === "Number") {
-        if (repeatCount >= 1) meaning = await analyseMeaning(answer, 2);
-        else meaning = await analyseMeaning(answer, 1);
-
-        if (meaning !== null) {
-          answerRef.doc().set(answer);
-          let re_mean = 0;
-          if (meaning.meaning === 1) re_mean = 1; //ถ้า ไม่ใช่ 1 คนให้โอนสายไปหาเจ้าหน้าที่เลยก่อน
-          order = {
-            nextTo: qd["nextTo" + re_mean],
-            isRepeat: false,
-            label: meaning.label, // analyseLabel ส่งค่าสีกลับไปด้วย
-          };
-        } else {
-          order = {
-            nextTo: null,
-            isRepeat: true,
-            label: "Ask again",
-          };
-        }
+      if (answer.repeatCount > 2) {
+        meaning = await analyseMeaning(answer, 2);
+        order = ConstructOrder(
+          answer.questionId,
+          "",
+          "z403",
+          false,
+          true,
+          meaning
+        );
       } else {
-        if (repeatCount >= 1) meaning = await analyseMeaning(answer, 2);
-        else meaning = await analyseMeaning(answer, 1);
-
-        if (meaning !== null) {
-          //ถ้ามี บันทึก answer ลงในฐานข้อมูล Answer
-          answerRef.doc().set(answer);
-          order = {
-            nextTo: qd["nextTo" + meaning.meaning],
-            isRepeat: false,
-            label: analyseLabel(answer, meaning), // analyseLabel ส่งค่าสีกลับไปด้วย
-          };
+        meaning = analyseMeaning(answer, 1);
+        if (meaning == null) {
+          order = ConstructOrder(
+            answer.questionId,
+            "",
+            "z404",
+            true,
+            false,
+            null
+          );
         } else {
-          //ถ้าไม่มี ส่ง order ให้ถามอีกรอบ
-          order = {
-            nextTo: null,
-            isRepeat: true,
-            label: "Ask again",
-          };
+          if (answer.dataType === "Number") {
+            if (meaning.meaning != 1) meaning.meaning == 0;
+          }
+          answerRef.doc().set(answer);
+          const qd = (await questionLibRef.doc(answer.questionId).get()).data();
+          order = ConstructOrder(
+            answer.questionId,
+            meaning.label,
+            qd["nextTo" + meaning.meaning],
+            false,
+            false,
+            null
+          );
         }
       }
     }
@@ -247,7 +231,7 @@ app.post("/suggestion/learning", async (req, res) => {
     patientId: patientId,
     repeatCount: repeatCount,
     suggestCount: suggestCount,
-    suggestion: suggestion
+    suggestion: suggestion,
   };
 
   let order = {
@@ -265,22 +249,21 @@ app.post("/suggestion/learning", async (req, res) => {
         .get()
     ).docs[0].data(); //หา meaning ของ suggestion
 
-    let ansmean = {meaning : 1}; //กำหนด meaning ของคำตอบ
+    let ansmean = { meaning: 1 }; //กำหนด meaning ของคำตอบ
     if (ans === "ไม่" || ans === "ไม่ใช่") ansmean.meaning = 0;
 
     switch (suggestionMeaning.meaning) {
       case 0:
         if (ansmean.meaning == 0) {
           //answerRef.doc().set(answer);
-          order.nextTo = qd.nextTo1
-          order.suggestMeaning = ans+suggestion
-          order.label = analyseLabel(answer,ansmean)
-
+          order.nextTo = qd.nextTo1;
+          order.suggestMeaning = ans + suggestion;
+          order.label = analyseLabel(answer, ansmean);
         } else {
           //answerRef.doc().set(answer);
-          order.nextTo = qd.nextTo0
-          order.suggestMeaning = suggestion
-          order.label = analyseLabel(answer,suggestionMeaning)
+          order.nextTo = qd.nextTo0;
+          order.suggestMeaning = suggestion;
+          order.label = analyseLabel(answer, suggestionMeaning);
         }
 
         break;
@@ -288,14 +271,14 @@ app.post("/suggestion/learning", async (req, res) => {
       case 1:
         if (ansmean.meaning == 0) {
           //answerRef.doc().set(answer);
-          order.nextTo = qd.nextTo0
-          order.suggestMeaning = ans+suggestion
-          order.label = analyseLabel(answer,ansmean)
+          order.nextTo = qd.nextTo0;
+          order.suggestMeaning = ans + suggestion;
+          order.label = analyseLabel(answer, ansmean);
         } else {
           //answerRef.doc().set(answer);
-          order.nextTo = qd.nextTo1
-          order.suggestMeaning = suggestion
-          order.label = analyseLabel(answer,suggestionMeaning)
+          order.nextTo = qd.nextTo1;
+          order.suggestMeaning = suggestion;
+          order.label = analyseLabel(answer, suggestionMeaning);
         }
         break;
       default:
@@ -303,6 +286,71 @@ app.post("/suggestion/learning", async (req, res) => {
     res.send(order);
   } catch (err) {
     res.send(err.message);
+  }
+});
+
+app.post("/ai/learning", async (req, res) => {
+  const qid = req.query.questionId;
+  const dataType = req.body.dataType;
+  const ans = req.body.answer;
+  const emergId = req.body.emergencyId;
+  const patientId = req.body.patientId;
+  const repeatCount = req.body.repeatCount;
+  const suggestCount = req.body.suggestCount;
+  const oldAns = req.body.old;
+  const suggestMeaning = req.body.suggestMeaning;
+
+  let answer = {
+    questionId: qid,
+    answer: ans,
+    dataType: dataType,
+    date: new Date(),
+    emergencyId: emergId,
+    patientId: patientId,
+    repeatCount: repeatCount,
+    suggestCount: suggestCount,
+  };
+
+  try {
+    let order = {};
+    let meaning = {};
+    if (suggestCount > 3) {
+      order = ConstructOrder(oldAns.questionId, "", "z103", false, false, null);
+    } else {
+      const aiMeaning = analyseMeaning(answer, 2);
+      const qd = (await questionLibRef.doc(aiMeaning.questionId).get()).data();
+      if (aiMeaning.label === "yes") {
+        meaning = ConstructMeaning(
+          oldAns.questionId,
+          oldAns.answer,
+          suggestMeaning.label,
+          suggestMeaning.meaning
+        );
+        meaningLibRef.doc().set(meaning);
+
+        order = ConstructOrder(
+          aiMeaning.questionId,
+          aiMeaning.label,
+          qd["nextTo" + aiMeaning.meaning],
+          false,
+          false,
+          null
+        );
+      } else {
+        const OldMeaning = analyseMeaning(oldAns, 2);
+        order = ConstructOrder(
+          oldAns.questionId,
+          "",
+          "z403",
+          false,
+          true,
+          OldMeaning
+        );
+      }
+    }
+    res.send(order);
+  } catch (e) {
+    res.send(e.message);
   }
 });
 
@@ -413,4 +461,28 @@ function analyseLabel(answer, meaning) {
   }
 
   return label;
+}
+
+function ConstructOrder(qid, lab, nt, isR, isS, sM) {
+  let order = {
+    questionId: qid,
+    label: lab,
+    nextTo: nt,
+    isRepeat: isR,
+    isSuggest: isS,
+    suggestMeaning: sM,
+  };
+
+  return order;
+}
+
+function ConstructMeaning(qid, ans, lab, mean) {
+  let meaning = {
+    questionId: qid,
+    answer: ans,
+    label: lab,
+    meaning: mean,
+  };
+
+  return meaning;
 }
