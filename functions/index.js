@@ -13,6 +13,7 @@ const emerRef = db.collection("Emergencies");
 const questionLibRef = db.collection("QuestionLib");
 const meaningLibRef = db.collection("MeaningLib");
 const answerRef = db.collection("Answers");
+const callingRef = db.collection("Calls");
 const bodyParser = require("body-parser");
 
 app.use(bodyParser.json());
@@ -74,20 +75,6 @@ app.post("/patients/new/", async (req, res) => {
 });
 
 app.put("/emergencies/update/", async (req, res) => {
-  /*
-        {
-            "location":{
-                "lat":"123456",
-                "lng":"654321"
-            },
-            "phone":"0817628551",
-            "numberOfPatients":"3",
-            "isPatients":false,
-            "isCovid":false,
-            "isAmbulanceSent":false,
-            "pleaseCall":"0968870831"
-        }
-    */
   try {
     const id = req.query.emergencyId;
     const data = req.body;
@@ -212,83 +199,6 @@ app.post("/ai/analyse", async (req, res) => {
   }
 });
 
-app.post("/suggestion/learning", async (req, res) => {
-  const qid = req.query.questionId;
-  const dataType = req.body.dataType;
-  const ans = req.body.answer;
-  const emergId = req.body.emergencyId;
-  const patientId = req.body.patientId;
-  const repeatCount = req.body.repeatCount;
-  const suggestCount = req.body.suggestCount;
-  const suggestion = req.body.suggestion;
-
-  let answer = {
-    questionId: qid,
-    answer: ans,
-    dataType: dataType,
-    date: new Date(),
-    emergencyId: emergId,
-    patientId: patientId,
-    repeatCount: repeatCount,
-    suggestCount: suggestCount,
-    suggestion: suggestion,
-  };
-
-  let order = {
-    nextTo: "",
-    isRepeat: false,
-    label: "",
-    suggestMeaning: "",
-  };
-  try {
-    const qd = (await questionLibRef.doc(qid).get()).data();
-    const suggestionMeaning = (
-      await meaningLibRef
-        .where("questionId", "==", qid)
-        .where("answer", "==", suggestion)
-        .get()
-    ).docs[0].data(); //หา meaning ของ suggestion
-
-    let ansmean = { meaning: 1 }; //กำหนด meaning ของคำตอบ
-    if (ans === "ไม่" || ans === "ไม่ใช่") ansmean.meaning = 0;
-
-    switch (suggestionMeaning.meaning) {
-      case 0:
-        if (ansmean.meaning == 0) {
-          //answerRef.doc().set(answer);
-          order.nextTo = qd.nextTo1;
-          order.suggestMeaning = ans + suggestion;
-          order.label = analyseLabel(answer, ansmean);
-        } else {
-          //answerRef.doc().set(answer);
-          order.nextTo = qd.nextTo0;
-          order.suggestMeaning = suggestion;
-          order.label = analyseLabel(answer, suggestionMeaning);
-        }
-
-        break;
-
-      case 1:
-        if (ansmean.meaning == 0) {
-          //answerRef.doc().set(answer);
-          order.nextTo = qd.nextTo0;
-          order.suggestMeaning = ans + suggestion;
-          order.label = analyseLabel(answer, ansmean);
-        } else {
-          //answerRef.doc().set(answer);
-          order.nextTo = qd.nextTo1;
-          order.suggestMeaning = suggestion;
-          order.label = analyseLabel(answer, suggestionMeaning);
-        }
-        break;
-      default:
-    }
-    res.send(order);
-  } catch (err) {
-    res.send(err.message);
-  }
-});
-
 app.post("/ai/learning", async (req, res) => {
   const qid = req.query.questionId;
   const dataType = req.body.dataType;
@@ -354,6 +264,25 @@ app.post("/ai/learning", async (req, res) => {
   }
 });
 
+app.post("/calling/new", async (req, res) => {
+  const calling = req.body;
+  try {
+    AddToCallingSetId(calling.id, calling);
+    res.send(calling);
+  } catch (err) {
+    res.send(err.message);
+  }
+});
+
+app.post("/calling/update", async (req, res) => {
+  const calling = req.body;
+  try {
+    callingRef.doc(calling.id).update(calling);
+    res.send(calling);
+  } catch (err) {
+    res.send(err.message);
+  }
+});
 exports.app = functions.https.onRequest(app);
 exports.admin = functions.https.onRequest(api);
 
@@ -485,4 +414,13 @@ function ConstructMeaning(qid, ans, lab, mean) {
   };
 
   return meaning;
+}
+
+function AddToCallingSetId(id, calling) {
+  try {
+    callingRef.doc(id).set(calling);
+    return calling;
+  } catch (err) {
+    return err.message;
+  }
 }
