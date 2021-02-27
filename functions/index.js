@@ -341,6 +341,16 @@ app.post("/ai/learning", async (req, res) => {
   }
 });
 
+app.get("/calling", async (req, res) => {
+  const id = req.query.id;
+  try {
+    const calling = (await callingRef.doc(id).get()).data();
+    res.send(calling);
+  } catch (error) {
+    res.send(error.message);
+  }
+});
+
 app.post("/calling/new", async (req, res) => {
   const calling = req.body;
   try {
@@ -351,7 +361,7 @@ app.post("/calling/new", async (req, res) => {
   }
 });
 
-app.post("/calling/update", async (req, res) => {
+app.put("/calling/update", async (req, res) => {
   const calling = req.body;
   try {
     callingRef.doc(calling.id).update(calling);
