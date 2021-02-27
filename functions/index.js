@@ -341,7 +341,7 @@ app.post("/ai/learning", async (req, res) => {
   }
 });
 
-app.get("/calling", async (req, res) => {
+app.get("/callings", async (req, res) => {
   const id = req.query.id;
   try {
     const calling = (await callingRef.doc(id).get()).data();
@@ -351,7 +351,7 @@ app.get("/calling", async (req, res) => {
   }
 });
 
-app.post("/calling/new", async (req, res) => {
+app.post("/callings/new", async (req, res) => {
   const calling = req.body;
   try {
     AddToCallingSetId(calling.id, calling);
@@ -361,7 +361,7 @@ app.post("/calling/new", async (req, res) => {
   }
 });
 
-app.put("/calling/update", async (req, res) => {
+app.put("/callings/update", async (req, res) => {
   const calling = req.body;
   try {
     callingRef.doc(calling.id).update(calling);
