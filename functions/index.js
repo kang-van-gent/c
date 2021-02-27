@@ -180,7 +180,7 @@ app.post("/ai/analyse", async (req, res) => {
         );
       } else {
         meaning = analyseMeaning(answer, 1);
-        if (meaning == null) {
+        if (meaning === null) {
           order = ConstructOrder(
             answer.questionId,
             "",
@@ -191,7 +191,7 @@ app.post("/ai/analyse", async (req, res) => {
           );
         } else {
           if (answer.dataType === "Number") {
-            if (meaning.meaning != 1) meaning.meaning == 0;
+            if (meaning.meaning !== 1) meaning.meaning === 0;
           }
           answerRef.doc().set(answer);
           const qd = (await questionLibRef.doc(answer.questionId).get()).data();
@@ -220,7 +220,7 @@ app.post("/suggestion/learning", async (req, res) => {
   const patientId = req.body.patientId;
   const repeatCount = req.body.repeatCount;
   const suggestCount = req.body.suggestCount;
-  const suggestion = req.body.suggestion;
+  const suggestMeaning = req.body.suggestMeaning;
 
   let answer = {
     questionId: qid,
@@ -231,21 +231,21 @@ app.post("/suggestion/learning", async (req, res) => {
     patientId: patientId,
     repeatCount: repeatCount,
     suggestCount: suggestCount,
-    suggestion: suggestion,
+    suggestMeaning: suggestMeaning,
   };
 
   let order = {
     nextTo: "",
     isRepeat: false,
     label: "",
-    suggestMeaning: "",
+    suggestMeaning: null,
   };
   try {
     const qd = (await questionLibRef.doc(qid).get()).data();
     const suggestionMeaning = (
       await meaningLibRef
         .where("questionId", "==", qid)
-        .where("answer", "==", suggestion)
+        .where("answer", "==", answer)
         .get()
     ).docs[0].data(); //หา meaning ของ suggestion
 
@@ -254,7 +254,7 @@ app.post("/suggestion/learning", async (req, res) => {
 
     switch (suggestionMeaning.meaning) {
       case 0:
-        if (ansmean.meaning == 0) {
+        if (ansmean.meaning === 0) {
           //answerRef.doc().set(answer);
           order.nextTo = qd.nextTo1;
           order.suggestMeaning = ans + suggestion;
@@ -269,7 +269,7 @@ app.post("/suggestion/learning", async (req, res) => {
         break;
 
       case 1:
-        if (ansmean.meaning == 0) {
+        if (ansmean.meaning === 0) {
           //answerRef.doc().set(answer);
           order.nextTo = qd.nextTo0;
           order.suggestMeaning = ans + suggestion;
@@ -319,7 +319,7 @@ app.post("/ai/learning", async (req, res) => {
     } else {
       const aiMeaning = analyseMeaning(answer, 2);
       const qd = (await questionLibRef.doc(aiMeaning.questionId).get()).data();
-      if (aiMeaning.label === "yes") {
+      if (aiMeaning.meaning === 1) {
         meaning = ConstructMeaning(
           oldAns.questionId,
           oldAns.answer,
@@ -330,7 +330,7 @@ app.post("/ai/learning", async (req, res) => {
 
         order = ConstructOrder(
           aiMeaning.questionId,
-          aiMeaning.label,
+          analyseLabel(oldAns, aiMeaning),
           qd["nextTo" + aiMeaning.meaning],
           false,
           false,
@@ -350,7 +350,7 @@ app.post("/ai/learning", async (req, res) => {
     }
     res.send(order);
   } catch (e) {
-    res.send(e.message);
+    res.send(e);
   }
 });
 
