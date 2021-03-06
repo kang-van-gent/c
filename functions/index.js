@@ -344,7 +344,8 @@ app.post("/ai/learning", async (req, res) => {
 app.get("/callings", async (req, res) => {
   const id = req.query.id;
   try {
-    const calling = (await callingRef.doc(id).get()).data();
+    let calling = (await callingRef.doc(id).get()).data();
+    calling.id = id;
     res.send(calling);
   } catch (error) {
     res.send(error.message);
