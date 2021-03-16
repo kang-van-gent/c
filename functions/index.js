@@ -21,18 +21,74 @@ const bodyParser = require("body-parser");
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
+app.get("/emergencies/clear", async (req, res) => {
+  try {
+    (await emerRef.get()).docs.forEach(doc => {
+      emerRef.doc(doc.id).delete()
+    })
+    res.send(true)
+  } catch (error) {
+    res.send(error)
+  }
+})
+
+app.get("/answers/clear", async (req, res) => {
+  try {
+    (await answerRef.get()).docs.forEach(doc => {
+      answerRef.doc(doc.id).delete()
+    })
+    res.send(true)
+  } catch (error) {
+    res.send(error)
+  }
+})
+
+app.get("/callings/clear", async (req, res) => {
+  try {
+    (await callingRef.get()).docs.forEach(doc => {
+      callingRef.doc(doc.id).delete()
+    })
+    res.send(true)
+  } catch (error) {
+    res.send(error)
+  }
+})
+
+app.get("/patients/clear", async (req, res) => {
+  try {
+    (await callingRef.get()).docs.forEach(doc => {
+      callingRef.doc(doc.id).delete()
+    })
+    res.send(true)
+  } catch (error) {
+    res.send(error)
+  }
+})
+
+app.get("/emergencies", async (req, res) => {
+  try {
+    const id = req.query.id
+    const emer = (await emerRef.doc(id).get()).data()
+    res.send(emer)
+  } catch (error) {
+    res.send(error)
+  }
+})
+
 app.post("/emergencies/new", async (req, res) => {
   try {
+    const platform = req.body.platform
     const eRef = emerRef.doc();
     const emergency = {
       id: eRef.id,
+      eid: eRef.id,
       phone: "",
       color: "",
       location: {
         latitude: null,
         longitude: null,
       },
-      numberOfPatients: "",
+      numberOfPatients: 1,
       isPatients: false,
       isCovid: false,
       isAmbulanceSent: false,
@@ -41,6 +97,7 @@ app.post("/emergencies/new", async (req, res) => {
       ambulanceSentDate: null,
       callEndedDate: null,
       pleaseCall: "",
+      platform: platform
     };
     await eRef.set(emergency);
 
@@ -130,6 +187,8 @@ app.post("/ai/analyse", async (req, res) => {
     suggestCount: suggestCount,
   };
 
+  const qd = (await questionLibRef.doc(answer.questionId).get()).data();
+
   try {
     let order = {};
     let meaning = {};
@@ -139,25 +198,24 @@ app.post("/ai/analyse", async (req, res) => {
       order = ConstructOrder(
         answer.questionId,
         analyseLabel(answer, meaning),
-        qd["nextTo"] + meaning.meaning,
+        qd["nextTo" + meaning.meaning],
         false,
         false,
         null
       );
     } else if (dataType === "Phone") {
-      meaning = checkPhoneMeaning(answer);
-      if (meaning === 1) answerRef.doc().set(answer);
-      const qd = (await questionLibRef.doc(answer.questionId).get()).data();
+      meaning = await checkPhoneMeaning(answer);
+      if (meaning === 1)answerRef.doc().set(answer);
       order = ConstructOrder(
         answer.questionId,
         answer.answer,
         qd["nextTo" + meaning.meaning],
-        meaning.meaning === 1,
+        meaning.meaning !== 1,
         false,
         null
       );
     } else {
-      if (answer.repeatCount > 2) {
+      if (repeatCount > 2) {
         meaning = await analyseMeaning(answer, 2);
         order = ConstructOrder(
           answer.questionId,
@@ -168,7 +226,7 @@ app.post("/ai/analyse", async (req, res) => {
           meaning
         );
       } else {
-        meaning = analyseMeaning(answer, 1);
+        meaning = await analyseMeaning(answer, 1);
         if (meaning === null) {
           order = ConstructOrder(
             answer.questionId,
@@ -183,7 +241,6 @@ app.post("/ai/analyse", async (req, res) => {
             if (meaning.meaning !== 1) meaning.meaning === 0;
           }
           answerRef.doc().set(answer);
-          const qd = (await questionLibRef.doc(answer.questionId).get()).data();
           order = ConstructOrder(
             answer.questionId,
             meaning.label,
@@ -306,7 +363,7 @@ app.post("/ai/learning", async (req, res) => {
     if (suggestCount > 3) {
       order = ConstructOrder(oldAns.questionId, "", "z103", false, false, null);
     } else {
-      const aiMeaning = analyseMeaning(answer, 2);
+      const aiMeaning = await analyseMeaning(answer, 2);
       const qd = (await questionLibRef.doc(aiMeaning.questionId).get()).data();
       if (aiMeaning.meaning === 1) {
         meaning = ConstructMeaning(
@@ -326,7 +383,7 @@ app.post("/ai/learning", async (req, res) => {
           null
         );
       } else {
-        const OldMeaning = analyseMeaning(oldAns, 2);
+        const OldMeaning = await analyseMeaning(oldAns, 2);
         order = ConstructOrder(
           oldAns.questionId,
           "",
@@ -354,10 +411,20 @@ app.get("/callings", async (req, res) => {
   }
 });
 
-app.post("/callings/new", async (req, res) => {
-  const calling = req.body;
+app.get("/callings", async (req, res) => {
   try {
-    AddToCallingSetId(calling.id, calling);
+    const id = req.query.id
+    const calling = (await callingRef.doc(id).get()).data()
+    res.send(calling)
+  } catch (error) {
+    res.send(error)
+  }
+})
+
+app.post("/callings/new", async (req, res) => {
+  let calling = req.body;
+  try {
+    calling = await AddToCallingSetId(calling.emergencyId, calling);
     res.send(calling);
   } catch (err) {
     res.send(err.message);
@@ -384,9 +451,11 @@ async function analyseMeaning(answer, mode) {
         .where("questionId", "==", answer.questionId)
         .where("answer", "==", answer.answer)
         .get();
-      if (meanings.empty) resolve(null);
-      //ไม่พบ meaning ใดใน MeaningLibRef หมายความว่าต้องให้ client ตอบอีกรอบ
-      else resolve(meanings.docs[0].data()); //ต้องการแค่เฉพาะสมาชิกตัวแรกใน array จากการ query
+      if (meanings.size > 0){
+        resolve(meanings.docs[0].data());       //ไม่พบ meaning ใดใน MeaningLibRef หมายความว่าต้องให้ client ตอบอีกรอบ
+      }else{
+        resolve(null); //ต้องการแค่เฉพาะสมาชิกตัวแรกใน array จากการ query
+      }
     } else {
       const options = {
         url: "https://covid19-test-a70c0.uc.r.appspot.com/api",
@@ -403,50 +472,56 @@ async function analyseMeaning(answer, mode) {
 }
 
 function checkPhoneMeaning(answer) {
-  let meaning = {
-    questionId: answer.questionId,
-    answer: answer.answer,
-    label: answer.answer,
-    meaning: 0,
-  };
-
-  if (isNaN(answer)) {
-    const reg = /\d+/g;
-    const result1 = answer.match(reg);
-    const phone = String(result1[0] + result1[1] + result1[2]);
-    const length = result1[0].length + result1[1].length + result1[2].length;
-    const prefix = phone[0] + phone[1];
-    if (prefix === "06" || prefix === "08" || prefix === "09") {
-      if (length === 10) meaning.meaning = 1;
-      else meaning.meaning = 0;
-    } else if (
-      prefix === "02" ||
-      prefix === "03" ||
-      prefix === "05" ||
-      prefix === "04" ||
-      prefix === "07"
-    ) {
-      if (length === 9) meaning.meaning = 1;
-      else meaning.meaning = 0;
+  return new Promise((resolve, reject) => {
+    let meaning = {
+      questionId: answer.questionId,
+      answer: answer.answer,
+      label: answer.answer,
+      meaning: 0,
+    };
+  
+    if (isNaN(answer)) {
+      const reg = /\d+/g;
+      const result1 = answer.answer.match(reg);
+      let phone = ""
+      result1.forEach(function(item) {
+        phone = phone + item
+      });
+      meaning.label = phone;
+      const length = phone.length;
+      const prefix = phone[0] + phone[1];
+      if (prefix === "06" || prefix === "08" || prefix === "09") {
+        if (length === 10) meaning.meaning = 1;
+        else meaning.meaning = 0;
+      } else if (
+        prefix === "02" ||
+        prefix === "03" ||
+        prefix === "05" ||
+        prefix === "04" ||
+        prefix === "07"
+      ) {
+        if (length === 9) meaning.meaning = 1;
+        else meaning.meaning = 0;
+      }
+    } else {
+      const prefix = answer[0] + answer[1];
+      if (prefix === "06" || prefix === "08" || prefix === "09") {
+        if (answer.length === 10) meaning.meaning = 1;
+        else meaning.meaning = 0;
+      } else if (
+        prefix === "02" ||
+        prefix === "03" ||
+        prefix === "05" ||
+        prefix === "04" ||
+        prefix === "07"
+      ) {
+        if (answer.length === 9) meaning.meaning = 1;
+        else meaning.meaning = 0;
+      }
     }
-  } else {
-    const prefix = answer[0] + answer[1];
-    if (prefix === "06" || prefix === "08" || prefix === "09") {
-      if (answer.length === 10) meaning.meaning = 1;
-      else meaning.meaning = 0;
-    } else if (
-      prefix === "02" ||
-      prefix === "03" ||
-      prefix === "05" ||
-      prefix === "04" ||
-      prefix === "07"
-    ) {
-      if (answer.length === 9) meaning.meaning = 1;
-      else meaning.meaning = 0;
-    }
-  }
-
-  return meaning;
+  
+    resolve(meaning);
+  });
 }
 
 function analyseLabel(answer, meaning) {
@@ -507,10 +582,14 @@ function ConstructMeaning(qid, ans, lab, mean) {
 }
 
 function AddToCallingSetId(id, calling) {
-  try {
-    callingRef.doc(id).set(calling);
-    return calling;
-  } catch (err) {
-    return err.message;
-  }
+  return new Promise((resolve, reject) => {
+    callingRef.doc(id).set(calling).then(() => {
+      calling.id = id
+      resolve(calling)
+      return
+    }).catch(error => {
+      reject(error)
+      return
+    })
+  })
 }
