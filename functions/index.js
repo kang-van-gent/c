@@ -16,49 +16,52 @@ const questionLibRef = db.collection("QuestionLib");
 const meaningLibRef = db.collection("MeaningLib");
 const answerRef = db.collection("Answers");
 const callingRef = db.collection("Calls");
+const testRef = db.collection("Tests");
 const bodyParser = require("body-parser");
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
-app.get("/emergencies/clear", async (req, res) => {
+app.get("/network", async(req, res) => {
+  try{
+    res.status(200)
+    res.send(true)
+  }catch(err){
+    res.status(500)
+    res.send(false)
+  }
+})
+
+api.get("/emergencies/clear", async (req, res) => {
   try {
-    (await emerRef.get()).docs.forEach(doc => {
-      emerRef.doc(doc.id).delete()
-    })
+    await deleteCollection(db, "Emergencies", 99);
     res.send(true)
   } catch (error) {
     res.send(error)
   }
 })
 
-app.get("/answers/clear", async (req, res) => {
+api.get("/answers/clear", async (req, res) => {
   try {
-    (await answerRef.get()).docs.forEach(doc => {
-      answerRef.doc(doc.id).delete()
-    })
+    await deleteCollection(db, "Answers", 99);
     res.send(true)
   } catch (error) {
     res.send(error)
   }
 })
 
-app.get("/callings/clear", async (req, res) => {
+api.get("/callings/clear", async (req, res) => {
   try {
-    (await callingRef.get()).docs.forEach(doc => {
-      callingRef.doc(doc.id).delete()
-    })
+    await deleteCollection(db, "Callings", 99);
     res.send(true)
   } catch (error) {
     res.send(error)
   }
 })
 
-app.get("/patients/clear", async (req, res) => {
+api.get("/patients/clear", async (req, res) => {
   try {
-    (await callingRef.get()).docs.forEach(doc => {
-      callingRef.doc(doc.id).delete()
-    })
+    await deleteCollection(db, "Patients", 99);
     res.send(true)
   } catch (error) {
     res.send(error)
@@ -68,7 +71,8 @@ app.get("/patients/clear", async (req, res) => {
 app.get("/emergencies", async (req, res) => {
   try {
     const id = req.query.id
-    const emer = (await emerRef.doc(id).get()).data()
+    let emer = (await emerRef.doc(id).get()).data()
+
     res.send(emer)
   } catch (error) {
     res.send(error)
@@ -77,7 +81,11 @@ app.get("/emergencies", async (req, res) => {
 
 app.post("/emergencies/new", async (req, res) => {
   try {
-    const platform = req.body.platform
+    //await testRef.add({a: req.body})
+    //res.send(req.body)
+    const body = JSON.parse(req.body.data)
+    const platform = body.platform
+    const location = body.location
     const eRef = emerRef.doc();
     const emergency = {
       id: eRef.id,
@@ -85,11 +93,11 @@ app.post("/emergencies/new", async (req, res) => {
       phone: "",
       color: "",
       location: {
-        latitude: null,
-        longitude: null,
+        latitude: location.latitude,
+        longitude: location.longitude
       },
       numberOfPatients: 1,
-      isPatients: false,
+      isPatient: false,
       isCovid: false,
       isAmbulanceSent: false,
       createdDate: new Date(),
@@ -108,8 +116,9 @@ app.post("/emergencies/new", async (req, res) => {
 });
 
 app.post("/patients/new/", async (req, res) => {
-  const emerId = req.query.emergencyId;
-  const num = req.query.number;
+  const body = JSON.parse(req.body.data)
+  const emerId = body.emergencyId;
+  const num = body.number;
 
   let patients = [];
 
@@ -135,9 +144,16 @@ app.post("/patients/new/", async (req, res) => {
 
 app.put("/emergencies/update/", async (req, res) => {
   try {
-    const id = req.query.emergencyId;
-    const data = req.body;
-    const emer = await emerRef.doc(id).update(data);
+    var body = JSON.parse(req.body.data)
+    const id = body.id;
+    
+    //pre cast data
+    if(body.createdDate !== null) body.createdDate = new Date(body.createdDate)
+    if(body.completedDate !== null) body.completedDate = new Date(body.completedDate)
+    if(body.ambulanceSentDate !== null) body.ambulanceSentDate = new Date(body.ambulanceSentDate)
+    if(body.callEndedDate !== null) body.callEndedDate = new Date(body.callEndedDate)
+  
+    const emer = await emerRef.doc(id).update(body);
 
     res.send(emer);
   } catch (err) {
@@ -146,20 +162,14 @@ app.put("/emergencies/update/", async (req, res) => {
 });
 
 app.put("/patients/update/", async (req, res) => {
-  /*
-    {
-        "orderNumber" : 1,
-        "isCovid" : false,
-        "color" : "red",
-        "answer" : [
-            "ไม่","1","ไม่ใช่"
-        ]
-    }
-    */
   try {
-    const id = req.query.patientId;
-    const data = req.body;
-    const patient = await patientRef.doc(id).update(data);
+    var body = JSON.parse(req.body.data)
+    const id = body.id;
+
+    //precast
+    if(body.completedDate !== null) body.completedDate = new Date(body.completedDate)
+
+    const patient = await patientRef.doc(id).update(body);
 
     res.send(patient);
   } catch (err) {
@@ -168,13 +178,14 @@ app.put("/patients/update/", async (req, res) => {
 });
 
 app.post("/ai/analyse", async (req, res) => {
-  const qid = req.query.questionId;
-  const dataType = req.body.dataType;
-  const ans = req.body.answer;
-  const emergId = req.body.emergencyId;
-  const patientId = req.body.patientId;
-  const repeatCount = req.body.repeatCount;
-  const suggestCount = req.body.suggestCount;
+  const body = JSON.parse(req.body.data)
+  const qid = body.questionId;
+  const dataType = body.dataType;
+  const ans = body.answer;
+  const emergId = body.emergencyId;
+  const patientId = body.patientId;
+  const repeatCount = body.repeatCount;
+  const suggestCount = body.suggestCount;
 
   let answer = {
     questionId: qid,
@@ -197,7 +208,7 @@ app.post("/ai/analyse", async (req, res) => {
       answerRef.doc().set(answer);
       order = ConstructOrder(
         answer.questionId,
-        analyseLabel(answer, meaning),
+        await analyseLabel(answer, meaning),
         qd["nextTo" + meaning.meaning],
         false,
         false,
@@ -208,7 +219,7 @@ app.post("/ai/analyse", async (req, res) => {
       if (meaning === 1)answerRef.doc().set(answer);
       order = ConstructOrder(
         answer.questionId,
-        answer.answer,
+        meaning.label,
         qd["nextTo" + meaning.meaning],
         meaning.meaning !== 1,
         false,
@@ -243,7 +254,7 @@ app.post("/ai/analyse", async (req, res) => {
           answerRef.doc().set(answer);
           order = ConstructOrder(
             answer.questionId,
-            meaning.label,
+            await analyseLabel(answer, meaning),
             qd["nextTo" + meaning.meaning],
             false,
             false,
@@ -258,93 +269,17 @@ app.post("/ai/analyse", async (req, res) => {
   }
 });
 
-app.post("/suggestion/learning", async (req, res) => {
-  const qid = req.query.questionId;
-  const dataType = req.body.dataType;
-  const ans = req.body.answer;
-  const emergId = req.body.emergencyId;
-  const patientId = req.body.patientId;
-  const repeatCount = req.body.repeatCount;
-  const suggestCount = req.body.suggestCount;
-  const suggestMeaning = req.body.suggestMeaning;
-
-  let answer = {
-    questionId: qid,
-    answer: ans,
-    dataType: dataType,
-    date: new Date(),
-    emergencyId: emergId,
-    patientId: patientId,
-    repeatCount: repeatCount,
-    suggestCount: suggestCount,
-    suggestMeaning: suggestMeaning,
-  };
-
-  let order = {
-    nextTo: "",
-    isRepeat: false,
-    label: "",
-    suggestMeaning: null,
-  };
-  try {
-    const qd = (await questionLibRef.doc(qid).get()).data();
-    const suggestionMeaning = (
-      await meaningLibRef
-        .where("questionId", "==", qid)
-        .where("answer", "==", answer)
-        .get()
-    ).docs[0].data(); //หา meaning ของ suggestion
-
-    let ansmean = { meaning: 1 }; //กำหนด meaning ของคำตอบ
-    if (ans === "ไม่" || ans === "ไม่ใช่") ansmean.meaning = 0;
-
-    switch (suggestionMeaning.meaning) {
-      case 0:
-        if (ansmean.meaning === 0) {
-          //answerRef.doc().set(answer);
-          order.nextTo = qd.nextTo1;
-          order.suggestMeaning = ans + suggestion;
-          order.label = analyseLabel(answer, ansmean);
-        } else {
-          //answerRef.doc().set(answer);
-          order.nextTo = qd.nextTo0;
-          order.suggestMeaning = suggestion;
-          order.label = analyseLabel(answer, suggestionMeaning);
-        }
-
-        break;
-
-      case 1:
-        if (ansmean.meaning === 0) {
-          //answerRef.doc().set(answer);
-          order.nextTo = qd.nextTo0;
-          order.suggestMeaning = ans + suggestion;
-          order.label = analyseLabel(answer, ansmean);
-        } else {
-          //answerRef.doc().set(answer);
-          order.nextTo = qd.nextTo1;
-          order.suggestMeaning = suggestion;
-          order.label = analyseLabel(answer, suggestionMeaning);
-        }
-        break;
-      default:
-    }
-    res.send(order);
-  } catch (err) {
-    res.send(err.message);
-  }
-});
-
 app.post("/ai/learning", async (req, res) => {
-  const qid = req.query.questionId;
-  const dataType = req.body.dataType;
-  const ans = req.body.answer;
-  const emergId = req.body.emergencyId;
-  const patientId = req.body.patientId;
-  const repeatCount = req.body.repeatCount;
-  const suggestCount = req.body.suggestCount;
-  const oldAns = req.body.old;
-  const suggestMeaning = req.body.suggestMeaning;
+  const body = JSON.parse(req.body.data)
+  const qid = body.questionId;
+  const dataType = body.dataType;
+  const ans = body.answer;
+  const emergId = body.emergencyId;
+  const patientId = body.patientId;
+  const repeatCount = body.repeatCount;
+  const suggestCount = body.suggestCount;
+  const oldAns = body.old;
+  const suggestMeaning = body.suggestMeaning;
 
   let answer = {
     questionId: qid,
@@ -358,23 +293,14 @@ app.post("/ai/learning", async (req, res) => {
   };
 
   try {
-    let order = {};
-    let meaning = {};
-    if (suggestCount > 3) {
-      order = ConstructOrder(oldAns.questionId, "", "z103", false, false, null);
+    if (suggestCount > 1) {
+      const order = ConstructOrder(oldAns.questionId, "", "z100", false, false, null);
+      res.send(order);
     } else {
       const aiMeaning = await analyseMeaning(answer, 2);
       const qd = (await questionLibRef.doc(aiMeaning.questionId).get()).data();
       if (aiMeaning.meaning === 1) {
-        meaning = ConstructMeaning(
-          oldAns.questionId,
-          oldAns.answer,
-          suggestMeaning.label,
-          suggestMeaning.meaning
-        );
-        meaningLibRef.doc().set(meaning);
-
-        order = ConstructOrder(
+        const order = await ConstructOrder(
           aiMeaning.questionId,
           analyseLabel(oldAns, aiMeaning),
           qd["nextTo" + aiMeaning.meaning],
@@ -382,39 +308,38 @@ app.post("/ai/learning", async (req, res) => {
           false,
           null
         );
+        await res.send(order);
+
+        const meaning = await ConstructMeaning(
+          oldAns.questionId,
+          oldAns.answer,
+          suggestMeaning.label,
+          suggestMeaning.meaning
+        );
+        await meaningLibRef.doc().set(meaning);
       } else {
         const OldMeaning = await analyseMeaning(oldAns, 2);
-        order = ConstructOrder(
+        const order = await ConstructOrder(
           oldAns.questionId,
           "",
-          "z403",
+          "z100",
           false,
-          true,
+          false,
           OldMeaning
         );
+        await res.send(order);
       }
     }
-    res.send(order);
   } catch (e) {
     res.send(e);
   }
 });
 
 app.get("/callings", async (req, res) => {
-  const id = req.query.id;
-  try {
-    let calling = (await callingRef.doc(id).get()).data();
-    calling.id = id;
-    res.send(calling);
-  } catch (error) {
-    res.send(error.message);
-  }
-});
-
-app.get("/callings", async (req, res) => {
   try {
     const id = req.query.id
-    const calling = (await callingRef.doc(id).get()).data()
+    let calling = (await callingRef.doc(id).get()).data()
+
     res.send(calling)
   } catch (error) {
     res.send(error)
@@ -422,20 +347,33 @@ app.get("/callings", async (req, res) => {
 })
 
 app.post("/callings/new", async (req, res) => {
-  let calling = req.body;
   try {
-    calling = await AddToCallingSetId(calling.emergencyId, calling);
-    res.send(calling);
+    var body = JSON.parse(req.body.data)
+
+    //precast
+    if(body.startAt !== null) body.startAt = new Date(body.startAt)
+    if(body.endAt !== null) body.endAt = new Date(body.endAt)
+    if(body.receiveAt !== null) body.receiveAt = new Date(body.receiveAt)
+
+    body = await AddToCallingSetId(body.emergencyId, body);
+    res.send(body);
   } catch (err) {
     res.send(err.message);
   }
 });
 
 app.put("/callings/update", async (req, res) => {
-  const calling = req.body;
   try {
-    callingRef.doc(calling.id).update(calling);
-    res.send(calling);
+    var body = JSON.parse(req.body.data)
+
+    //precast
+    if(body.startAt !== null) body.startAt = new Date(body.startAt)
+    if(body.endAt !== null) body.endAt = new Date(body.endAt)
+    if(body.receiveAt !== null) body.receiveAt = new Date(body.receiveAt)
+
+    await callingRef.doc(body.id).update(body)
+
+    res.send(body)
   } catch (err) {
     res.send(err.message);
   }
@@ -525,7 +463,7 @@ function checkPhoneMeaning(answer) {
 }
 
 function analyseLabel(answer, meaning) {
-  let label = "";
+  let label = meaning.label;
 
   switch (answer.questionId) {
     case "a102":
@@ -566,7 +504,6 @@ function ConstructOrder(qid, lab, nt, isR, isS, sM) {
     isSuggest: isS,
     suggestMeaning: sM,
   };
-
   return order;
 }
 
@@ -593,3 +530,37 @@ function AddToCallingSetId(id, calling) {
     })
   })
 }
+
+async function deleteCollection(db, collectionPath, batchSize) {
+  const collectionRef = db.collection(collectionPath);
+  const query = collectionRef.orderBy('__name__').limit(batchSize);
+
+  return new Promise((resolve, reject) => {
+    deleteQueryBatch(db, query, resolve).catch(reject);
+  });
+}
+
+async function deleteQueryBatch(db, query, resolve) {
+  const snapshot = await query.get();
+
+  const batchSize = snapshot.size;
+  if (batchSize === 0) {
+    // When there are no documents left, we are done
+    resolve();
+    return;
+  }
+
+  // Delete documents in a batch
+  const batch = db.batch();
+  snapshot.docs.forEach((doc) => {
+    batch.delete(doc.ref);
+  });
+  await batch.commit();
+
+  // Recurse on the next process tick, to avoid
+  // exploding the stack.
+  process.nextTick(() => {
+    deleteQueryBatch(db, query, resolve);
+  });
+}
+
